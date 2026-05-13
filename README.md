@@ -108,6 +108,31 @@ npx @modelcontextprotocol/inspector http://localhost:3001/sse
 2. Click **"List Tools"** to verify that `list_tables` is registered.
 3. Click **"Call Tool"** for `list_tables` to see the results from your LocalStack DynamoDB.
 
+## Development Workflow
+
+This project follows the **GitHub Flow**:
+
+1.  **Work on a Feature Branch**: Always create a new branch for features or fixes:
+    ```bash
+    git checkout -b feature/your-feature-name
+    ```
+2.  **Commit Locally**: Make your changes and commit them with descriptive messages:
+    ```bash
+    git add .
+    git commit -m "Add [feature description]"
+    ```
+3.  **Push to GitHub**: Push your branch to the remote repository:
+    ```bash
+    git push origin feature/your-feature-name
+    ```
+4.  **Create a Pull Request (PR)**: Go to GitHub and open a PR to merge your feature branch into `main`.
+5.  **Merge**: Once the code is verified, merge the PR on GitHub.
+6.  **Sync Local Main**: After merging, pull the latest changes back to your local `main`:
+    ```bash
+    git checkout main
+    git pull origin main
+    ```
+
 ## Configuration for AI Clients (Claude Desktop)
 
 To use this server with Claude Desktop, you need a bridge because Claude primarily supports stdio. Use `supergateway` to connect to your running Go server:
