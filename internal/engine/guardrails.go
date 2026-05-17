@@ -63,7 +63,7 @@ func (g *Guardrail) isSensitiveField(field string) bool {
 	return false
 }
 
-func (g *Guardrail) ValidateDelete(tableName string) error {
+func (g *Guardrail) ValidateProtectedTable(tableName string) error {
 	if _, ok := g.protectedTable[tableName]; ok {
 		return fmt.Errorf("Access is denied to table %s", tableName)
 	}

@@ -413,8 +413,116 @@ func (srv *Server) batchPutItems(ctx context.Context, req *mcp.CallToolRequest, 
 	}, nil, nil
 }
 
+func (srv *Server) batchDeleteItems(ctx context.Context, req *mcp.CallToolRequest, args *BatchDeleteItemsArgs) (*mcp.CallToolResult, any, error) {
+	if err := srv.guardrail.ValidateProtectedTable(args.TableName); err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Validation error: %v", err),
+				},
+			},
+			IsError: true,
+		}, nil, nil
+	}
+
+	if len(args.Keys) == 0 {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("No keys provided to delete from table %s", args.TableName),
+				},
+			},
+			IsError: true,
+		}, nil, nil
+	}
+	items := []types.WriteRequest{}
+	for _, key := range args.Keys {
+		av, err := attributevalue.MarshalMap(key)
+		if err != nil {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{
+						Text: fmt.Sprintf("Error when marshaling key %v from table %s: %v", key, args.TableName, err),
+					},
+				},
+				IsError: true,
+			}, nil, nil
+		}
+
+		items = append(items, types.WriteRequest{
+			DeleteRequest: &types.DeleteRequest{
+				Key: av,
+			},
+		})
+	}
+
+	unprocessedItemMsg := ""
+	totalUnprocessed := 0
+	for start := 0; start < len(items); start += batchSize {
+		end := start + batchSize
+		if end > len(items) {
+			end = len(items)
+		}
+
+		batchItems := items[start:end]
+
+		if err := srv.guardrail.ValidateBatchSize(batchItems); err != nil {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{
+						Text: fmt.Sprintf("Error when batch deleting items from table %s: %v", args.TableName, err),
+					},
+				},
+				IsError: true,
+			}, nil, nil
+		}
+
+		input := &dynamodb.BatchWriteItemInput{
+			RequestItems: map[string][]types.WriteRequest{
+				args.TableName: batchItems,
+			},
+		}
+		for i := 0; i < 3; i++ {
+			output, err := srv.db.BatchWriteItem(ctx, input)
+			if err != nil {
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{
+						&mcp.TextContent{
+							Text: fmt.Sprintf("Error when batch deleting items from table %s: %v", args.TableName, err),
+						},
+					},
+					IsError: true,
+				}, nil, nil
+			}
+			if len(output.UnprocessedItems) > 0 {
+				if i == 2 {
+					for _, req := range output.UnprocessedItems {
+						totalUnprocessed += len(req)
+					}
+				} else {
+					input.RequestItems = output.UnprocessedItems
+				}
+			} else {
+				break
+			}
+		}
+	}
+
+	if totalUnprocessed > 0 {
+		unprocessedItemMsg = fmt.Sprintf("\nWarning: %d items were not deleted due to provisioned throughput constraints from table %s.", totalUnprocessed, args.TableName)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: fmt.Sprintf("Successfully deleted %d items from table %s%s", len(args.Keys)-totalUnprocessed, args.TableName, unprocessedItemMsg),
+			},
+		},
+	}, nil, nil
+}
+
 func (srv *Server) deleteItem(ctx context.Context, req *mcp.CallToolRequest, args *DeleteItemArgs) (*mcp.CallToolResult, any, error) {
-	if err := srv.guardrail.ValidateDelete(args.TableName); err != nil {
+	if err := srv.guardrail.ValidateProtectedTable(args.TableName); err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
@@ -756,8 +864,8 @@ func (srv *Server) batchGetItems(ctx context.Context, req *mcp.CallToolRequest, 
 
 	itemStrings := []string{}
 	for _, item := range scrubbedItems {
-		itemMsg, _ := json.Marshal(item)
-		itemStrings = append(itemStrings, string(itemMsg))
+		itemTrans, _ := json.Marshal(item)
+		itemStrings = append(itemStrings, string(itemTrans))
 	}
 
 	itemsJson, _ := json.Marshal(itemStrings)

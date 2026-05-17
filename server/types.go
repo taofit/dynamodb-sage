@@ -34,6 +34,11 @@ type BatchPutItemsArgs struct {
 	Items     []map[string]any `json:"items"`
 }
 
+type BatchDeleteItemsArgs struct {
+	TableName string           `json:"tableName"`
+	Keys      []map[string]any `json:"keys"`
+}
+
 type DeleteItemArgs struct {
 	TableName string         `json:"tableName"`
 	Key       map[string]any `json:"key"`

@@ -136,6 +136,28 @@ func (srv *Server) addTools() {
 	}, srv.batchPutItems)
 
 	mcp.AddTool(srv.s, &mcp.Tool{
+		Name:        "batch_delete_items",
+		Description: "Delete multiple items in a DynamoDB table",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"tableName": map[string]any{
+					"type":        "string",
+					"description": "The name of the table to delete the items from",
+				},
+				"keys": map[string]any{
+					"type":        "array",
+					"description": "The keys of items to be deleted from the table",
+					"items": map[string]any{
+						"type": "object",
+					},
+				},
+			},
+			"required": []string{"tableName", "keys"},
+		},
+	}, srv.batchDeleteItems)
+
+	mcp.AddTool(srv.s, &mcp.Tool{
 		Name:        "delete_item",
 		Description: "Delete an item from a DynamoDB table",
 		InputSchema: map[string]any{
