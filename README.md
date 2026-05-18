@@ -104,7 +104,15 @@ npx @modelcontextprotocol/inspector http://localhost:3001/sse
 ```
 
 ### 3. Using the Inspector
-1. Open the URL provided by the inspector in your terminal (e.g., `http://localhost:6274/...`) in your browser.
+1. Wait for the response from the above command for message like 
+	```
+	⚙️ Proxy server listening on localhost:6277
+	...
+	🚀 MCP Inspector is up and running at:
+	   http://localhost:6274/?MCP_PROXY_AUTH_TOKEN=... 
+	```
+
+2. Open the URL provided by the inspector in your terminal (e.g., `http://localhost:6274/...`) in your browser.
 2. Click **"List Tools"** to verify that `list_tables` is registered.
 3. Click **"Call Tool"** for `list_tables` to see the results from your LocalStack DynamoDB.
 

@@ -2,6 +2,7 @@ package server
 
 import (
 	"dynamodb-sage/internal/engine"
+	"log"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -14,14 +15,18 @@ type Server struct {
 	guardrail *engine.Guardrail
 }
 
-func New(db *dynamodb.Client) *Server {
+func New(db *dynamodb.Client, configPath string) *Server {
 
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:    "dynamo-sage",
 		Version: "1.0.0",
 	}, nil)
 
-	guardrail := engine.NewGuardrail(100, 20)
+	config, err := engine.LoadConfig(configPath)
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+	guardrail := engine.NewGuardrail(*config)
 	srv := &Server{
 		db:        db,
 		s:         s,

@@ -127,6 +127,9 @@ func (srv *Server) putItem(ctx context.Context, req *mcp.CallToolRequest, args *
 			IsError: true,
 		}, nil, nil
 	}
+	if res := srv.validateSchema(args.TableName, av); res != nil {
+		return res, nil, nil
+	}
 
 	_, err = srv.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &args.TableName,
@@ -342,6 +345,9 @@ func (srv *Server) batchPutItems(ctx context.Context, req *mcp.CallToolRequest, 
 				},
 				IsError: true,
 			}, nil, nil
+		}
+		if res := srv.validateSchema(args.TableName, av); res != nil {
+			return res, nil, nil
 		}
 		writeRequest := types.WriteRequest{
 			PutRequest: &types.PutRequest{
@@ -877,4 +883,18 @@ func (srv *Server) batchGetItems(ctx context.Context, req *mcp.CallToolRequest, 
 			},
 		},
 	}, nil, nil
+}
+
+func (srv *Server) validateSchema(tableName string, av map[string]types.AttributeValue) *mcp.CallToolResult {
+	if err := srv.guardrail.ValidateSchema(tableName, av); err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error when validating schema for table %s: %v", tableName, err),
+				},
+			},
+			IsError: true,
+		}
+	}
+	return nil
 }

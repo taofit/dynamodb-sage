@@ -5,15 +5,16 @@ import (
 	"dynamodb-sage/server"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/joho/godotenv"
 )
 
 func main() {
 	ctx := context.Background()
-	// Configure AWS SDK for LocalStack, for actual AWS, remove WithBaseEndpoint and WithCredentialsProvider, keep ctx only
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion("eu-north-1"),
 		config.WithBaseEndpoint("http://localhost:4566"),
@@ -24,7 +25,15 @@ func main() {
 	}
 	db := dynamodb.NewFromConfig(cfg)
 
-	srv := server.New(db)
+	err = godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
+	configPath := os.Getenv("CONFIG_PATH")
+	if configPath == "" {
+		configPath = "config.yaml"
+	}
+	srv := server.New(db, configPath)
 
 	port := ":3001"
 	http.Handle("/sse", srv.SSEHandler())

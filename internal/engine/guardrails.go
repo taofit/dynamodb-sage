@@ -8,36 +8,96 @@ import (
 )
 
 type Guardrail struct {
-	maxLimit       int32
-	fieldToScrub   []string
-	defaultLimit   int32
 	protectedTable map[string]bool
+	config         AppConfig
 }
 
 const MaxIndividualSize = 400 * 1024
 const MaxBatchSize = 16 * 1024 * 1024
 
-func NewGuardrail(maxLimit int32, defaultLimit int32) *Guardrail {
-	return &Guardrail{
-		maxLimit:     maxLimit,
-		defaultLimit: defaultLimit,
-		fieldToScrub: []string{"password", "ssn", "token", "api_key", "secret", "card_number", "credit_card"},
-		protectedTable: map[string]bool{
-			"Transactions": true,
-			"SystemConfig": true,
-		},
+func NewGuardrail(config AppConfig) *Guardrail {
+	protectedTable := make(map[string]bool)
+	for _, t := range config.ProtectedTables {
+		protectedTable[t] = true
 	}
+	return &Guardrail{
+		protectedTable: protectedTable,
+		config:         config,
+	}
+}
+
+func (g *Guardrail) ValidateSchema(tableName string, item map[string]types.AttributeValue) error {
+	tableCfg := g.getTableConfig(tableName)
+	if tableCfg == nil || !tableCfg.EnforceSchema {
+		return nil
+	}
+	for field, value := range item {
+		expectedType, exists := tableCfg.Columns[field]
+		if !exists {
+			continue
+		}
+
+		if !g.matchType(value, expectedType) {
+			return fmt.Errorf("Field %s does not match the expected type %s", field, expectedType)
+		}
+	}
+	return nil
+}
+
+func (g *Guardrail) matchType(value types.AttributeValue, expected string) bool {
+	switch expected {
+	case "S":
+		_, ok := value.(*types.AttributeValueMemberS)
+		return ok
+	case "N":
+		_, ok := value.(*types.AttributeValueMemberN)
+		return ok
+	case "B":
+		_, ok := value.(*types.AttributeValueMemberB)
+		return ok
+	case "BOOL":
+		_, ok := value.(*types.AttributeValueMemberBOOL)
+		return ok
+	case "NULL":
+		_, ok := value.(*types.AttributeValueMemberNULL)
+		return ok
+	case "SS":
+		_, ok := value.(*types.AttributeValueMemberSS)
+		return ok
+	case "NS":
+		_, ok := value.(*types.AttributeValueMemberNS)
+		return ok
+	case "BS":
+		_, ok := value.(*types.AttributeValueMemberBS)
+		return ok
+	case "L":
+		_, ok := value.(*types.AttributeValueMemberL)
+		return ok
+	case "M":
+		_, ok := value.(*types.AttributeValueMemberM)
+		return ok
+	}
+	return false
+}
+
+func (g *Guardrail) getTableConfig(tableName string) *TableConfig {
+	for _, table := range g.config.Tables {
+		if table.Name == tableName {
+			return &table
+		}
+	}
+	return nil
 }
 
 func (g *Guardrail) EnforceLimit(limit int32) (int32, string) {
 	var warning string
 	if limit <= 0 {
-		limit = g.defaultLimit
+		limit = g.config.GlobalLimits.DefaultLimit	
 	}
 
-	if limit > g.maxLimit {
-		limit = g.maxLimit
-		warning = fmt.Sprintf("Limit was set to %d as it was higher than the maximum allowed limit: %d", limit, g.maxLimit)
+	if limit > g.config.GlobalLimits.MaxLimit {
+		limit = g.config.GlobalLimits.MaxLimit
+		warning = fmt.Sprintf("Limit was set to %d as it was higher than the maximum allowed limit: %d", limit, g.config.GlobalLimits.MaxLimit)
 	}
 	return limit, warning
 }
@@ -55,7 +115,7 @@ func (g *Guardrail) ScrubItems(items []map[string]any) []map[string]any {
 }
 
 func (g *Guardrail) isSensitiveField(field string) bool {
-	for _, sensitiveField := range g.fieldToScrub {
+	for _, sensitiveField := range g.config.SensitiveFields {
 		if strings.EqualFold(field, sensitiveField) {
 			return true
 		}
